@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peregrine Security - Site Sentry</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        .font-serif-custom {
+            font-family: 'Times New Roman', Times, serif;
+        }
+        .accent-text { color: #84cc16; }
+        .accent-bg { background-color: #84cc16; }
+        .accent-border { border-color: rgba(132, 204, 22, 0.3); }
+        
+        /* Digital Rain Effect */
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.3;
+            pointer-events: none;
+        }
+
+        .terminal-block {
+            background: #050505;
+            border: 1px solid rgba(255,255,255,0.05);
+            font-family: monospace;
+        }
+
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 5px rgba(132, 204, 22, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(132, 204, 22, 0.4); }
+            100% { box-shadow: 0 0 5px rgba(132, 204, 22, 0.2); }
+        }
+        .glow-btn:hover {
+            animation: pulse-glow 2s infinite;
+        }
+
+        /* Risk Score Gauge */
+        .risk-gauge {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid;
+            transition: all 0.5s;
+        }
+        .severity-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        .sev-critical { background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid #ef444455; }
+        .sev-high     { background: rgba(249,115,22,0.15); color: #f97316; border: 1px solid #f9731655; }
+        .sev-medium   { background: rgba(234,179,8,0.15);  color: #eab308; border: 1px solid #eab30855; }
+        .sev-low      { background: rgba(132,204,22,0.15); color: #84cc16; border: 1px solid #84cc1655; }
+        .vuln-item {
+            border-left: 3px solid;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 0 4px 4px 0;
+        }
+        .ai-summary-box {
+            background: linear-gradient(135deg, rgba(132,204,22,0.05), rgba(0,0,0,0));
+            border: 1px solid rgba(132,204,22,0.2);
+            border-left: 3px solid #84cc16;
+            padding: 16px;
+            margin-bottom: 20px;
+            border-radius: 0 6px 6px 0;
+        }
+
+        /* Intro Page Styles */
+        #intro-page {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            transition: opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1), visibility 1.5s;
+        }
+
+        #intro-page.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .buddha-container {
+            position: relative;
+            perspective: 2000px;
+            width: 80vw;
+            height: 80vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .buddha-3d {
+            width: auto;
+            height: 70vh;
+            max-width: 90%;
+            object-fit: contain;
+            transform-style: preserve-3d;
+            transition: transform 0.15s ease-out;
+            filter: drop-shadow(0 0 30px rgba(132, 204, 22, 0.4));
+            user-select: none;
+            pointer-events: none;
+            animation: floating 6s ease-in-out infinite, light-sweep 4s linear infinite;
+        }
+
+        @keyframes floating {
+            0%, 100% { transform: translateY(0px) rotateY(var(--rx, 0deg)) rotateX(var(--ry, 0deg)); }
+            50% { transform: translateY(-20px) rotateY(var(--rx, 0deg)) rotateX(var(--ry, 0deg)); }
+        }
+
+        @keyframes light-sweep {
+            0% { filter: drop-shadow(0 0 30px rgba(132, 204, 22, 0.4)) brightness(1); }
+            50% { filter: drop-shadow(0 0 50px rgba(132, 204, 22, 0.8)) brightness(1.3); }
+            100% { filter: drop-shadow(0 0 30px rgba(132, 204, 22, 0.4)) brightness(1); }
+        }
+
+        .glitch-active {
+            animation: glitch 0.3s cubic-bezier(.25,.46,.45,.94) both infinite;
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-5px, 5px); }
+            40% { transform: translate(-5px, -5px); }
+            60% { transform: translate(5px, 5px); }
+            80% { transform: translate(5px, -5px); }
+            100% { transform: translate(0); }
+        }
+
+        .intro-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.8) 70%);
+            pointer-events: none;
+        }
+
+        .enter-container {
+            position: absolute;
+            bottom: 10%;
+            z-index: 10;
+            text-align: center;
+        }
+
+        .enter-btn {
+            background: transparent;
+            border: 1px solid #84cc16;
+            color: #84cc16;
+            padding: 1rem 3rem;
+            font-size: 0.75rem;
+            font-weight: 900;
+            letter-spacing: 0.5em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(5px);
+        }
+
+        .enter-btn:hover {
+            background: #84cc16;
+            color: #000;
+            box-shadow: 0 0 30px rgba(132, 204, 22, 0.6);
+            transform: translateY(-5px);
+        }
+
+        .enter-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: 0.5s;
+        }
+
+        .enter-btn:hover::before {
+            left: 100%;
+        }
+
+        /* Video FX Overlay */
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+            background: 
+                radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.4) 100%),
+                repeating-linear-gradient(0deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 2px);
+            background-size: 100% 100%, 100% 4px;
+        }
+
+        .zoom-entry {
+            transform: scale(3) translateZ(500px);
+            opacity: 0 !important;
+            transition: transform 1.5s cubic-bezier(0.7, 0, 0.3, 1), opacity 1s !important;
+        }
+
+        .matrix-bg-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.2;
+            pointer-events: none;
+        }
+
+        /* 3D Grid for Main Site */
+        #grid-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.15;
+            pointer-events: none;
+        }
+        /* Loading Overlay */
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 10000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .scan-hud-container {
+            position: relative;
+            width: 400px;
+            height: 400px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid #84cc1622;
+            animation: pulse-border 2s infinite;
+        }
+
+        .scan-hud-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.7;
+            animation: rotate-hud 10s linear infinite;
+        }
+
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: #84cc16;
+            box-shadow: 0 0 20px #84cc16;
+            animation: scan-move 2s linear infinite;
+        }
+
+        .hud-glitch {
+            animation: hud-glitch-anim 0.2s infinite;
+        }
+
+        @keyframes hud-glitch-anim {
+            0% { transform: translate(0) skew(0); filter: hue-rotate(0deg); }
+            20% { transform: translate(-2px, 2px) skew(2deg); filter: hue-rotate(90deg); }
+            40% { transform: translate(2px, -2px) skew(-2deg); filter: hue-rotate(180deg); }
+            100% { transform: translate(0) skew(0); filter: hue-rotate(0deg); }
+        }
+
+        @keyframes rotate-hud {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes scan-move {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+
+        @keyframes pulse-border {
+            0%, 100% { border-color: #84cc1622; }
+            50% { border-color: #84cc1666; }
+        }
+
+        .loading-text {
+            margin-top: 2rem;
+            color: #84cc16;
+            font-family: monospace;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Video/HUD Overlay -->
+    <div id="loading-overlay">
+        <div class="scan-hud-container">
+            <img src="scan_hud.png" alt="Scanning HUD" class="scan-hud-img">
+            <div class="scan-line"></div>
+        </div>
+        <p class="loading-text" id="status-text">Analyzing Target Surface...</p>
+    </div>
+
+    <!-- 1st Page: Cinematic 3D Intro -->
+    <div id="intro-page">
+        <div class="video-overlay"></div>
+        <div class="matrix-bg-layer" id="intro-matrix"></div>
+        <div class="buddha-container" id="buddha-scene">
+            <img src="intro_buddha.png" alt="Matrix Buddha" class="buddha-3d" id="buddha-img">
+            <div class="intro-overlay"></div>
+        </div>
+        <div class="enter-container">
+            <button class="enter-btn" id="enter-site-btn">Initializing...</button>
+        </div>
+    </div>
+
+    <canvas id="grid-canvas"></canvas>
+    <canvas id="canvas"></canvas>
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 py-6 px-12 flex justify-between items-center transition-all" id="navbar">
+        <div class="flex items-center gap-3">
+            <i data-lucide="shield" class="accent-text"></i>
+            <span class="text-lg font-black uppercase tracking-tighter italic">Peregrine</span>
+        </div>
+        <div class="hidden md:flex items-center gap-10">
+            <a href="#" class="text-[10px] font-black uppercase tracking-[0.3em] text-white/50 hover:text-white transition-colors">Protection</a>
+            <a href="#sentry" class="text-[10px] font-black uppercase tracking-[0.3em] text-white/50 hover:text-white transition-colors">Site Sentry</a>
+            <button class="border accent-border accent-text px-6 py-2 text-[9px] font-black tracking-widest uppercase hover:bg-[#84cc16] hover:text-black transition-all">Connect</button>
+        </div>
+    </nav>
+
+    <main class="relative z-10">
+        <!-- Hero Section -->
+        <section class="h-screen flex flex-col items-center justify-center text-center px-6">
+            <span class="accent-text font-black uppercase tracking-[0.5em] text-[10px] mb-8 block">The Great Silence in the Noise</span>
+            <h1 class="text-6xl md:text-9xl font-light mb-12 leading-none tracking-tighter font-serif-custom">
+                Digital <br> <span class="accent-text italic">Equanimity.</span>
+            </h1>
+
+            <!-- Oracle Input -->
+            <div class="bg-black border accent-border p-8 max-w-2xl w-full mx-auto relative group">
+                <h3 class="accent-text font-black uppercase tracking-[0.4em] text-[10px] mb-6 flex items-center gap-2">
+                    <i data-lucide="sparkles" size="14"></i> Oracle Intelligence
+                </h3>
+                <div class="flex gap-4">
+                    <input type="text" id="oracleInput" placeholder="Seek security wisdom..." 
+                           class="flex-1 bg-white/5 border-b border-white/20 py-3 text-white outline-none focus:border-[#84cc16] transition-colors">
+                    <button id="askBtn" class="accent-text hover:scale-110 transition-transform">
+                        <i data-lucide="send"></i>
+                    </button>
+                </div>
+                <div id="oracleResponse" class="hidden mt-6 bg-[#84cc16]/5 p-4 border-l-2 border-[#84cc16] text-left">
+                    <p class="text-white font-light italic text-sm italic" id="responseText"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sentry Section -->
+        <section id="sentry" class="py-32 px-6 max-w-5xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-6xl text-white mb-8 font-serif-custom">🛡️ Site <span class="accent-text">Sentry.</span></h2>
+                <p class="text-white/40 max-w-xl mx-auto">Input a URL to map the attack surface and generate hardened remediation logic in real-time.</p>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-4 mb-12">
+                <div class="flex-1 relative">
+                    <i data-lucide="globe" class="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size="20"></i>
+                    <input type="text" id="urlInput" placeholder="https://example.com" 
+                           class="w-full bg-white/5 border border-white/10 py-5 px-12 text-white outline-none focus:border-[#84cc16] transition-all">
+                </div>
+                <button id="scanBtn" class="accent-bg text-black px-10 py-5 text-xs font-black uppercase tracking-widest hover:bg-white transition-all glow-btn">
+                    Initiate Audit
+                </button>
+            </div>
+
+            <!-- Terminal Output -->
+            <div id="terminal" class="hidden terminal-block p-8 md:p-12 rounded relative overflow-hidden">
+                <div class="flex items-center gap-2 mb-8 pb-4 border-b border-white/5">
+                    <div class="w-2 h-2 rounded-full bg-red-500/50"></div>
+                    <div class="w-2 h-2 rounded-full bg-yellow-500/50"></div>
+                    <div class="w-2 h-2 rounded-full bg-green-500/50"></div>
+                    <span class="ml-4 text-[10px] text-white/20 font-black uppercase tracking-widest">Target_Analysis.log</span>
+                </div>
+                <div id="terminalContent" class="font-mono text-sm leading-relaxed text-white/70">
+                    <!-- Results go here -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Lucide Icons
+        lucide.createIcons();
+
+        // Digital Rain
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let rainInterval;
+
+        function initRain() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const chars = "アイウエオカキクケコサシスセソタチツテト0123456789";
+            const fontSize = 15;
+            const columns = canvas.width / fontSize;
+            const drops = Array(Math.floor(columns)).fill(1);
+
+            function drawRain() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#84cc1622';
+                ctx.font = fontSize + 'px monospace';
+
+                for (let i = 0; i < drops.length; i++) {
+                    const text = chars.charAt(Math.floor(Math.random() * chars.length));
+                    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                    drops[i]++;
+                }
+            }
+            if (rainInterval) clearInterval(rainInterval);
+            rainInterval = setInterval(drawRain, 33);
+        }
+
+        // 3D Intro Logic
+        const introPage = document.getElementById('intro-page');
+        const buddhaImg = document.getElementById('buddha-img');
+        const enterBtn = document.getElementById('enter-site-btn');
+        const scene = document.getElementById('buddha-scene');
+
+        // Mouse Parallax Effect
+        document.addEventListener('mousemove', (e) => {
+            if (introPage.classList.contains('hidden')) {
+                updateGridMouse(e);
+                return;
+            }
+
+            const xAxis = (window.innerWidth / 2 - e.pageX) / 25;
+            const yAxis = (window.innerHeight / 2 - e.pageY) / 25;
+            
+            buddhaImg.style.setProperty('--rx', `${xAxis}deg`);
+            buddhaImg.style.setProperty('--ry', `${-yAxis}deg`);
+            buddhaImg.style.transform = `rotateY(${xAxis}deg) rotateX(${-yAxis}deg)`;
+        });
+
+        // 3D Grid Logic for Main Site
+        const gridCanvas = document.getElementById('grid-canvas');
+        const gctx = gridCanvas.getContext('2d');
+        let gridMouse = { x: 0, y: 0 };
+
+        function updateGridMouse(e) {
+            gridMouse.x = e.clientX;
+            gridMouse.y = e.clientY;
+        }
+
+        function drawGrid() {
+            gridCanvas.width = window.innerWidth;
+            gridCanvas.height = window.innerHeight;
+            gctx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+            gctx.strokeStyle = '#84cc16';
+            gctx.lineWidth = 0.5;
+
+            const step = 50;
+            const centerX = gridCanvas.width / 2;
+            const centerY = gridCanvas.height / 2;
+
+            for (let i = -10; i <= 10; i++) {
+                // Horizontal
+                gctx.beginPath();
+                gctx.moveTo(0, centerY + i * step);
+                gctx.lineTo(gridCanvas.width, centerY + i * step);
+                gctx.stroke();
+
+                // Vertical
+                gctx.beginPath();
+                gctx.moveTo(centerX + i * step, 0);
+                gctx.lineTo(centerX + i * step, gridCanvas.height);
+                gctx.stroke();
+            }
+            requestAnimationFrame(drawGrid);
+        }
+        drawGrid();
+
+        // Random Glitch Effect
+        setInterval(() => {
+            if (introPage.classList.contains('hidden')) return;
+            buddhaImg.classList.add('glitch-active');
+            setTimeout(() => {
+                buddhaImg.classList.remove('glitch-active');
+            }, 200);
+        }, 3000);
+
+        // Reset transform on mouse leave
+        introPage.addEventListener('mouseleave', () => {
+            buddhaImg.style.transform = `rotateY(0deg) rotateX(0deg)`;
+        });
+
+        // Enter Site Transition
+        enterBtn.addEventListener('click', () => {
+            buddhaImg.classList.add('zoom-entry');
+            introPage.classList.add('hidden');
+            setTimeout(() => {
+                introPage.style.display = 'none';
+                initRain(); // Start main site animations
+            }, 1500);
+        });
+
+        // Text Decoding Effect
+        const originalText = "Enter The Void";
+        const chars_dec = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*";
+        let iteration = 0;
+
+        function decodeText() {
+            const interval = setInterval(() => {
+                enterBtn.innerText = originalText.split("")
+                    .map((letter, index) => {
+                        if (index < iteration) return originalText[index];
+                        return chars_dec[Math.floor(Math.random() * chars_dec.length)];
+                    })
+                    .join("");
+                
+                if (iteration >= originalText.length) {
+                    clearInterval(interval);
+                    enterBtn.style.cursor = "pointer";
+                    enterBtn.disabled = false;
+                }
+                iteration += 1 / 3;
+            }, 30);
+        }
+
+        // Initialize Intro
+        window.addEventListener('load', () => {
+            enterBtn.disabled = true;
+            enterBtn.style.cursor = "wait";
+            setTimeout(decodeText, 1000);
+        });
+
+        // UI Interactions
+        const scanBtn = document.getElementById('scanBtn');
+        const terminal = document.getElementById('terminal');
+        const terminalContent = document.getElementById('terminalContent');
+        const loadingOverlay = document.getElementById('loading-overlay');
+
+        const askBtn = document.getElementById('askBtn');
+        const oracleInput = document.getElementById('oracleInput');
+        const oracleResponse = document.getElementById('oracleResponse');
+        const responseText = document.getElementById('responseText');
+
+        // Oracle Logic
+        askBtn.addEventListener('click', async () => {
+            const prompt = oracleInput.value;
+            if (!prompt) return;
+
+            askBtn.disabled = true;
+            try {
+                const response = await fetch('http://localhost:8000/api/oracle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt })
+                });
+                const data = await response.json();
+                
+                oracleResponse.classList.remove('hidden');
+                oracleInput.value = ""; // Clear input
+                
+                // Typing Effect
+                let i = 0;
+                responseText.innerText = "";
+                const typeInterval = setInterval(() => {
+                    if (i < data.response.length) {
+                        responseText.innerText += data.response[i];
+                        i++;
+                    } else {
+                        clearInterval(typeInterval);
+                    }
+                }, 30);
+                
+                oracleResponse.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch (err) {
+                console.error(err);
+                alert("Oracle connection lost.");
+            } finally {
+                askBtn.disabled = false;
+            }
+        });
+
+        // Scan Logic
+        scanBtn.addEventListener('click', async () => {
+            const urlInput = document.getElementById('urlInput');
+            const url = urlInput.value;
+            if (!url) return;
+
+            loadingOverlay.style.display = 'flex';
+            const hud = document.querySelector('.scan-hud-img');
+            hud.classList.add('hud-glitch');
+            
+            scanBtn.disabled = true;
+
+            try {
+                const response = await fetch('http://localhost:8000/api/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await response.json();
+                
+                urlInput.value = "";
+                terminal.classList.remove('hidden');
+                terminalContent.innerHTML = `<p class="accent-text mb-4 animate-pulse">⚡ Connection stabilized. Processing AI analysis for <span class="text-white">${data.target}</span>...</p>`;
+
+                setTimeout(() => {
+                    hud.classList.remove('hud-glitch');
+
+                    // Risk score color
+                    const score = data.risk_score || 0;
+                    let scoreColor = '#84cc16';
+                    let scoreLabel = 'LOW';
+                    if (score >= 75) { scoreColor = '#ef4444'; scoreLabel = 'CRITICAL'; }
+                    else if (score >= 50) { scoreColor = '#f97316'; scoreLabel = 'HIGH'; }
+                    else if (score >= 25) { scoreColor = '#eab308'; scoreLabel = 'MEDIUM'; }
+
+                    // Severity badge helper
+                    function sevBadge(sev) {
+                        const cls = { Critical: 'sev-critical', High: 'sev-high', Medium: 'sev-medium', Low: 'sev-low' }[sev] || 'sev-low';
+                        return `<span class="severity-badge ${cls}">${sev}</span>`;
+                    }
+
+                    // Vuln left-border color
+                    function vulnBorderColor(sev) {
+                        return { Critical: '#ef4444', High: '#f97316', Medium: '#eab308', Low: '#84cc16' }[sev] || '#84cc16';
+                    }
+
+                    const vulnHtml = data.vulnerabilities.map(v => `
+                        <div class="vuln-item" style="border-color:${vulnBorderColor(v.severity)}">
+                            <div class="flex items-center gap-3 mb-1">
+                                ${sevBadge(v.severity)}
+                                <span class="text-white/90 font-mono text-sm">${v.type}</span>
+                            </div>
+                            ${v.detail ? `<p class="text-white/40 text-xs mt-1 ml-1">${v.detail}</p>` : ''}
+                        </div>`
+                    ).join("");
+
+                    const exploitHtml = data.exploit_vectors.map((e, i) => `
+                        <div class="flex gap-3 mb-3">
+                            <span class="accent-text font-mono font-bold text-xs shrink-0">[${String(i+1).padStart(2,'0')}]</span>
+                            <span class="text-white/70 text-sm">${e}</span>
+                        </div>`
+                    ).join("");
+
+                    const httpBadge = data.http_status
+                        ? `<span class="text-xs font-mono px-2 py-1 rounded" style="background:rgba(132,204,22,0.1);color:#84cc16">HTTP ${data.http_status}</span>`
+                        : '';
+
+                    const sslBadge = data.ssl && data.ssl.valid
+                        ? `<span class="text-xs font-mono px-2 py-1 rounded" style="background:rgba(132,204,22,0.1);color:#84cc16">SSL ✓ ${data.ssl.days_left}d left</span>`
+                        : data.ssl && data.ssl.error
+                        ? `<span class="text-xs font-mono px-2 py-1 rounded" style="background:rgba(239,68,68,0.1);color:#ef4444">SSL ✗</span>`
+                        : '';
+
+                    terminalContent.innerHTML = `
+                        <!-- Header Bar -->
+                        <div class="flex flex-wrap items-center gap-3 mb-6 pb-4 border-b border-white/10">
+                            <span class="text-white/40 text-xs font-mono">TARGET:</span>
+                            <span class="text-white font-mono text-sm">${data.target}</span>
+                            ${httpBadge} ${sslBadge}
+                        </div>
+
+                        <!-- Risk Score + AI Summary -->
+                        <div class="flex flex-col md:flex-row gap-6 mb-6">
+                            <div class="risk-gauge shrink-0" style="border-color:${scoreColor};box-shadow:0 0 20px ${scoreColor}33">
+                                <span class="font-black text-3xl" style="color:${scoreColor}">${score}</span>
+                                <span class="text-[9px] font-black tracking-widest" style="color:${scoreColor}">${scoreLabel}</span>
+                                <span class="text-[8px] text-white/30 mt-1">RISK SCORE</span>
+                            </div>
+                            ${data.ai_summary ? `
+                            <div class="ai-summary-box flex-1">
+                                <p class="text-[9px] accent-text font-black uppercase tracking-widest mb-2">⚡ AI Security Assessment</p>
+                                <p class="text-white/80 text-sm leading-relaxed">${data.ai_summary}</p>
+                            </div>` : ''}
+                        </div>
+
+                        <!-- Vulnerabilities -->
+                        <h4 class="accent-text font-bold mb-3 uppercase text-xs tracking-widest">▸ Vulnerabilities Found (${data.vulnerabilities.length})</h4>
+                        <div class="mb-8">${vulnHtml || '<p class="text-white/30 text-sm">No vulnerabilities detected.</p>'}</div>
+
+                        <!-- Exploit Vectors -->
+                        <h4 class="accent-text font-bold mb-3 uppercase text-xs tracking-widest">▸ Attack Vectors</h4>
+                        <div class="mb-8">${exploitHtml}</div>
+
+                        <!-- Remediation -->
+                        <h4 class="accent-text font-bold mb-3 uppercase text-xs tracking-widest">▸ Remediation Code</h4>
+                        <div class="bg-black/70 p-5 border border-white/10 rounded mb-4 overflow-x-auto">
+                            <pre class="text-[#84cc16] text-xs leading-relaxed whitespace-pre-wrap"><code>${data.remediation}</code></pre>
+                        </div>
+
+                        <!-- Footer -->
+                        <p class="text-white/20 text-[10px] font-mono mt-4">Scan complete — powered by Peregrine AI v2.0</p>
+                    `;
+                    loadingOverlay.style.display = 'none';
+                    scanBtn.disabled = false;
+                    terminal.scrollIntoView({ behavior: 'smooth' });
+                }, 800);
+
+            } catch (err) {
+                hud.classList.remove('hud-glitch');
+                loadingOverlay.style.display = 'none';
+                scanBtn.disabled = false;
+                terminal.classList.remove('hidden');
+                terminalContent.innerHTML = `
+                    <div style="border-left:3px solid #ef4444;padding:16px;background:rgba(239,68,68,0.05)">
+                        <p class="text-xs font-black uppercase tracking-widest mb-2" style="color:#ef4444">⚠ Connection Error</p>
+                        <p class="text-white/60 text-sm">Could not reach the backend. Ensure <code class="accent-text">server.py</code> is running on port 8000.</p>
+                        <p class="text-white/30 text-xs mt-2">${err.message}</p>
+                    </div>`;
+            }
+        });
+
+        // Navbar Scroll Effect
+        window.onscroll = () => {
+            const nav = document.getElementById('navbar');
+            if (window.scrollY > 50) {
+                nav.style.backgroundColor = 'rgba(0,0,0,0.9)';
+                nav.style.padding = '1rem 3rem';
+            } else {
+                nav.style.backgroundColor = 'transparent';
+                nav.style.padding = '1.5rem 3rem';
+            }
+        };
+    </script>
+</body>
+</html>
